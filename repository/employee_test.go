@@ -15,7 +15,7 @@ import (
 func NewMongoClient() *mongo.Client {
 	mongoTestClient, err := mongo.Connect(
 		context.Background(),
-		options.Client().ApplyURI("mongodb+srv://admin:<password>@cluster0.rs5nrtm.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"),
+		options.Client().ApplyURI("mongodb+srv://admin:admin123@cluster0.rs5nrtm.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"),
 	)
 
 	if err != nil {
