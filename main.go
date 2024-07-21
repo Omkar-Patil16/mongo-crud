@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"mongodb/usecase"
 	"net/http"
 	"os"
 
@@ -13,49 +14,63 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
-var mongoClient *mongo.Client
+var client *mongo.Client
 
 func init() {
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("env load err", err)
+		log.Fatal("Unable to Load Env file", err)
 	}
-
-	log.Println("env file loaded")
-
-	//create mongo client
-
-	mongoClient, err = mongo.Connect(
-		context.Background(),
-		options.Client().ApplyURI(os.Getenv("MONGO_URI")),
-	)
+	opts := options.Client().ApplyURI(os.Getenv("MONGO_URI"))
+	client, err = mongo.Connect(context.Background(), opts)
 
 	if err != nil {
-		log.Fatal("Connection Error\n", err)
+		log.Fatal("Unable to Connect to MongoDB", err)
 	}
+	log.Println("Connection String is Correct")
 
-	log.Println("env file loaded")
+	// Ping the Mongo DB
 
-	err = mongoClient.Ping(context.Background(), readpref.Primary())
-
+	err = client.Ping(context.Background(), readpref.Primary())
 	if err != nil {
-		log.Fatal("Ping Failed", err)
+		log.Fatal("Unable to Ping MongoDB", err)
 	}
+	log.Println("Mongo DB ping successfull")
 
-	log.Println("MongoDB connected")
 }
 
 func main() {
-	defer mongoClient.Disconnect(context.Background())
 
-	r := mux.NewRouter()
+	//Create Collection
 
-	r.HandleFunc("/health", heathHandler).Methods(http.MethodGet)
-	http.ListenAndServe(":4444", r)
+	coll := client.Database(os.Getenv("DB_NAME")).Collection(os.Getenv("COLLECTION_NAME"))
 
+	// create employe Service
+
+	empService := usecase.EmployeeService{MongoCollection: coll}
+
+	// creating a router
+
+	router := mux.NewRouter()
+
+	// create a health handler for /health
+	router.HandleFunc("/health", healthHandler).Methods(http.MethodGet)
+	router.HandleFunc("/employee", empService.CreateEmployee).Methods(http.MethodPost)
+	router.HandleFunc("/employee/{id}", empService.GetEmployeeByID).Methods(http.MethodGet)
+	router.HandleFunc("/employee", empService.GetAllEmployee).Methods(http.MethodGet)
+	router.HandleFunc("/employee/{id}", empService.UpdateEmployeeByIDr).Methods(http.MethodPut)
+	router.HandleFunc("/employee/{id}", empService.DeleteEmployeeByID).Methods(http.MethodDelete)
+	router.HandleFunc("/employee", empService.DeleteAllEmployee).Methods(http.MethodDelete)
+
+	// create listen and server for router
+	log.Println("Server is Running on port 4444")
+	http.ListenAndServe(":4444", router)
+
+	// closing the mongo connection
+	defer client.Disconnect(context.Background())
 }
 
-func heathHandler(w http.ResponseWriter, r *http.Response) {
+func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("running"))
+	w.Write([]byte("running..."))
 }
